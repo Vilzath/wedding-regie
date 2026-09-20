@@ -66,7 +66,7 @@ Le conteneur applicatif rejoint les réseaux Docker externes `web` et `database`
 2. Y placer `compose.yml`, créer `.env` depuis `.env.example`, puis créer le dossier `data`. Conserver `GHCR_OWNER` et `GHCR_REPOSITORY` en minuscules, comme l'exige Docker.
 3. Créer une fois le rôle et le schéma avec `deploy/postgres-bootstrap.sql` en remplaçant son mot de passe.
 4. Ajouter le bloc de `deploy/Caddyfile.example` au Caddy général avec le vrai domaine.
-5. Connecter le VPS à GHCR, puis lancer :
+5. Rendre le package GHCR public une fois dans GitHub, puis lancer les commandes suivantes sans connexion GitHub sur le VPS :
 
 ```bash
 docker compose pull wedding-music
