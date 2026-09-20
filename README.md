@@ -63,7 +63,7 @@ Cette commande valide Prisma, vérifie TypeScript, lance les tests puis produit 
 Le conteneur applicatif rejoint les réseaux Docker externes `web` et `database`. Il n’embarque aucun PostgreSQL et n’expose aucun port public.
 
 1. Créer `/opt/docker/apps/wedding-music` sur le VPS.
-2. Y placer `compose.yml`, créer `.env` depuis `.env.example`, puis créer le dossier `data`.
+2. Y placer `compose.yml`, créer `.env` depuis `.env.example`, puis créer le dossier `data`. Conserver `GHCR_OWNER` et `GHCR_REPOSITORY` en minuscules, comme l'exige Docker.
 3. Créer une fois le rôle et le schéma avec `deploy/postgres-bootstrap.sql` en remplaçant son mot de passe.
 4. Ajouter le bloc de `deploy/Caddyfile.example` au Caddy général avec le vrai domaine.
 5. Connecter le VPS à GHCR, puis lancer :
