@@ -1,5 +1,3 @@
-CREATE SCHEMA IF NOT EXISTS "regie";
-
 CREATE TYPE "regie"."Role" AS ENUM ('ADMIN', 'USER');
 CREATE TYPE "regie"."AssetKind" AS ENUM ('AUDIO', 'IMAGE');
 
