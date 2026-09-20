@@ -6,7 +6,7 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   DATABASE_URL: z
     .string()
-    .default("postgresql://wedding_music:wedding_music@localhost:5434/apps?schema=wedding_music"),
+    .default("postgresql://wedding_music:wedding_music@localhost:5434/apps?schema=regie"),
   SESSION_COOKIE_NAME: z.string().min(1).default("wedding_session"),
   SESSION_TTL_HOURS: z.coerce.number().positive().default(12),
   COOKIE_SECURE: z.enum(["true", "false"]).optional(),

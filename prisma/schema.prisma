@@ -4,21 +4,21 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  schemas  = ["wedding_music"]
+  schemas  = ["regie"]
 }
 
 enum Role {
   ADMIN
   USER
 
-  @@schema("wedding_music")
+  @@schema("regie")
 }
 
 enum AssetKind {
   AUDIO
   IMAGE
 
-  @@schema("wedding_music")
+  @@schema("regie")
 }
 
 model User {
@@ -32,7 +32,7 @@ model User {
   updatedAt    DateTime      @updatedAt @map("updated_at")
 
   @@map("users")
-  @@schema("wedding_music")
+  @@schema("regie")
 }
 
 model UserSession {
@@ -46,7 +46,7 @@ model UserSession {
   @@index([userId])
   @@index([expiresAt])
   @@map("user_sessions")
-  @@schema("wedding_music")
+  @@schema("regie")
 }
 
 model Category {
@@ -59,7 +59,7 @@ model Category {
 
   @@index([sortOrder])
   @@map("categories")
-  @@schema("wedding_music")
+  @@schema("regie")
 }
 
 model MediaAsset {
@@ -76,7 +76,7 @@ model MediaAsset {
 
   @@unique([kind, sha256])
   @@map("media_assets")
-  @@schema("wedding_music")
+  @@schema("regie")
 }
 
 model MusicButton {
@@ -96,7 +96,7 @@ model MusicButton {
 
   @@index([categoryId, sortOrder])
   @@map("music_buttons")
-  @@schema("wedding_music")
+  @@schema("regie")
 }
 
 model CeremonyScript {
@@ -107,5 +107,5 @@ model CeremonyScript {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("ceremony_scripts")
-  @@schema("wedding_music")
+  @@schema("regie")
 }

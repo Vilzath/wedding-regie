@@ -10,6 +10,6 @@ export default defineConfig({
   datasource: {
     url:
       process.env["DATABASE_URL"] ??
-      "postgresql://wedding_music:wedding_music@localhost:5434/apps?schema=wedding_music",
+      "postgresql://wedding_music:wedding_music@localhost:5434/apps?schema=regie",
   },
 });

@@ -81,4 +81,4 @@ Au démarrage, le conteneur applique `prisma migrate deploy`, synchronise les de
 
 Les fichiers sont stockés dans `/app/data` à l’intérieur du conteneur, monté sur `./data` côté VPS. La base PostgreSQL ne contient que leurs métadonnées et leur empreinte.
 
-Sauvegarder ensemble le schéma PostgreSQL `wedding_music` et le dossier `data`.
+Sauvegarder ensemble le schéma PostgreSQL `regie` et le dossier `data`.
