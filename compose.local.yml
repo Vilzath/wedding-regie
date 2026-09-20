@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: wedding-music-db-local
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: apps
+      POSTGRES_USER: wedding_music
+      POSTGRES_PASSWORD: wedding_music
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - wedding_music_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wedding_music -d apps"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  wedding_music_postgres:

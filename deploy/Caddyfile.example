@@ -1,0 +1,4 @@
+musique.example.com {
+  encode zstd gzip
+  reverse_proxy wedding-music:3000
+}

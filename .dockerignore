@@ -1,0 +1,14 @@
+node_modules
+dist
+.angular
+.git
+.github
+.openai
+.sites-runtime
+.env
+.env.*
+!.env.example
+storage
+data
+coverage
+*.log

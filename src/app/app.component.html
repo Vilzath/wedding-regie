@@ -1,0 +1,402 @@
+@if (loading()) {
+  <main class="center-screen" aria-live="polite">
+    <span class="loader"></span>
+    <p>Ouverture de la régie…</p>
+  </main>
+} @else if (!user()) {
+  <main class="login-page">
+    <section class="login-card">
+      <div class="brand-mark" aria-hidden="true">♪</div>
+      <p class="eyebrow">Cérémonie</p>
+      <h1>Régie mariage</h1>
+      <p class="muted">Les musiques utiles, au bon moment.</p>
+      <form [formGroup]="loginForm" (ngSubmit)="login()" class="stack-form">
+        <label>
+          Identifiant
+          <input formControlName="username" autocomplete="username" inputmode="text" />
+        </label>
+        <label>
+          Mot de passe
+          <input formControlName="password" type="password" autocomplete="current-password" />
+        </label>
+        @if (error()) { <p class="message error" role="alert">{{ error() }}</p> }
+        <button class="primary wide" type="submit" [disabled]="loginForm.invalid || busy()">
+          {{ busy() ? "Connexion…" : "Entrer" }}
+        </button>
+      </form>
+    </section>
+  </main>
+} @else {
+  <div class="app-shell">
+    <header class="topbar">
+      <button class="brand-button" type="button" (click)="setView('buttons')" aria-label="Ouvrir les musiques">
+        <span class="brand-note">♪</span>
+        <span>Régie</span>
+      </button>
+      <div class="topbar-actions">
+        <button
+          type="button"
+          class="wake-chip"
+          [class.active]="wakeLock.status() === 'active'"
+          (click)="wakeLock.enable()"
+          [attr.aria-label]="wakeLock.status() === 'active' ? 'Écran maintenu allumé' : 'Maintenir l’écran allumé'"
+        >
+          <span class="status-dot"></span>
+          {{ wakeLock.status() === "active" ? "Écran allumé" : "Activer écran" }}
+        </button>
+        <button class="icon-button" type="button" (click)="logout()" aria-label="Se déconnecter">↪</button>
+      </div>
+    </header>
+
+    <main class="main-content" [class.with-player]="audio.activeButton()">
+      @if (error()) { <p class="message error" role="alert">{{ error() }}</p> }
+      @if (notice()) { <p class="message success" role="status">{{ notice() }}</p> }
+      @if (audio.error()) { <p class="message error" role="alert">{{ audio.error() }}</p> }
+
+      @if (activeView() === "buttons") {
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Lecture immédiate</p>
+            <h1>Musiques</h1>
+          </div>
+        </div>
+        @if (!buttons().length) {
+          <section class="empty-state">
+            <span aria-hidden="true">♪</span>
+            <h2>Aucune musique</h2>
+            <p>{{ isAdmin() ? "Ajoute ton premier bouton depuis l’administration." : "Les boutons seront bientôt disponibles." }}</p>
+          </section>
+        } @else {
+          @for (group of groupedButtons(); track group.category.id) {
+            @if (group.buttons.length) {
+              <section class="music-section">
+                <h2>{{ group.category.name }}</h2>
+                <div class="music-grid">
+                  @for (button of group.buttons; track button.id) {
+                    <button
+                      type="button"
+                      class="music-card"
+                      [class.playing]="isMusicPlaying(button)"
+                      (click)="toggleMusic(button)"
+                    >
+                      <span class="music-cover">
+                        @if (button.imageUrl) {
+                          <img [src]="button.imageUrl" [alt]="''" />
+                        } @else {
+                          <span class="cover-placeholder" aria-hidden="true">♪</span>
+                        }
+                        <span class="play-badge" aria-hidden="true">
+                          {{ isMusicPlaying(button) ? "Ⅱ" : "▶" }}
+                        </span>
+                      </span>
+                      <span class="music-copy">
+                        <strong>{{ button.name }}</strong>
+                        @if (button.description) { <small>{{ button.description }}</small> }
+                      </span>
+                    </button>
+                  }
+                </div>
+              </section>
+            }
+          }
+        }
+      }
+
+      @if (activeView() === "script") {
+        <div class="page-heading sticky-heading">
+          <div>
+            <p class="eyebrow">Maître de cérémonie</p>
+            <h1>Conducteur</h1>
+          </div>
+          @if (isAdmin() && !editingScript()) {
+            <button class="secondary compact" type="button" (click)="beginScriptEdit()">Modifier</button>
+          }
+        </div>
+
+        @if (editingScript()) {
+          <section class="editor-card">
+            <div class="tag-palette" aria-label="Balises disponibles">
+              @for (button of buttons(); track button.id) {
+                <button type="button" class="tag-chip" (click)="prepareMusicInsert(button, scriptBox)">
+                  &#64;{{ button.tag }}
+                </button>
+              }
+            </div>
+            @if (pendingScriptButton(); as selectedButton) {
+              <form [formGroup]="scriptRangeForm" (ngSubmit)="insertMusicExcerpt()" class="excerpt-builder">
+                <div class="excerpt-heading">
+                  <div>
+                    <small>Insérer dans le conducteur</small>
+                    <strong>{{ selectedButton.name }}</strong>
+                  </div>
+                  <button class="icon-button" type="button" (click)="cancelMusicInsert()" aria-label="Fermer">×</button>
+                </div>
+                <div class="timing-fields">
+                  <label>
+                    Début
+                    <input formControlName="start" inputmode="numeric" placeholder="0:30" />
+                  </label>
+                  <label>
+                    Fin
+                    <input formControlName="end" inputmode="numeric" placeholder="1:15" />
+                  </label>
+                </div>
+                @if (scriptRangeError()) {
+                  <small class="field-error">{{ scriptRangeError() }}</small>
+                }
+                <div class="excerpt-actions">
+                  <button class="ghost compact" type="button" (click)="insertFullMusic()">Morceau entier</button>
+                  <button class="secondary compact" type="submit">Insérer l’extrait</button>
+                </div>
+              </form>
+            }
+            <form [formGroup]="scriptForm" (ngSubmit)="saveScript()">
+              <label class="sr-only" for="script-content">Texte du maître de cérémonie</label>
+              <textarea
+                #scriptBox
+                id="script-content"
+                formControlName="content"
+                class="script-editor"
+                placeholder="Écris ici le texte du maître de cérémonie et insère les musiques avec leurs balises."
+              ></textarea>
+              <div class="form-actions">
+                <button class="ghost" type="button" (click)="cancelScriptEdit()">Annuler</button>
+                <button class="primary" type="submit" [disabled]="busy()">Sauvegarder</button>
+              </div>
+            </form>
+          </section>
+        } @else if (!scriptContent()) {
+          <section class="empty-state">
+            <h2>Conducteur vide</h2>
+            <p>{{ isAdmin() ? "Ajoute le texte et les moments musicaux." : "Le texte n’a pas encore été préparé." }}</p>
+          </section>
+        } @else {
+          <article class="script-reading">
+            @for (segment of scriptSegments(); track $index) {
+              @if (segment.type === "text") {
+                <span class="script-text">{{ segment.content }}</span>
+              } @else {
+                <button
+                  type="button"
+                  class="inline-music"
+                  [class.playing]="isMusicPlaying(segment.button, segment.startSeconds, segment.endSeconds)"
+                  (click)="toggleMusic(segment.button, segment.startSeconds, segment.endSeconds)"
+                >
+                  <span aria-hidden="true">{{ isMusicPlaying(segment.button, segment.startSeconds, segment.endSeconds) ? "Ⅱ" : "▶" }}</span>
+                  {{ segment.button.name }}
+                  @if (segment.endSeconds !== null) {
+                    <small>{{ formatTime(segment.startSeconds) }}–{{ formatTime(segment.endSeconds) }}</small>
+                  }
+                </button>
+              }
+            }
+          </article>
+        }
+      }
+
+      @if (activeView() === "admin" && isAdmin()) {
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">Configuration</p>
+            <h1>Administration</h1>
+          </div>
+        </div>
+
+        <section class="admin-section">
+          <div class="section-title">
+            <h2>Catégories</h2>
+            <span>{{ categories().length }}</span>
+          </div>
+          <form [formGroup]="categoryForm" (ngSubmit)="saveCategory()" class="inline-form card-surface">
+            <label class="grow">
+              Nom
+              <input formControlName="name" maxlength="100" placeholder="Cérémonie" />
+              @if (categoryForm.controls.name.touched && categoryForm.controls.name.invalid) {
+                <small class="field-error">Indique un nom.</small>
+              }
+            </label>
+            <label class="order-field">
+              Ordre
+              <input formControlName="sortOrder" type="number" inputmode="numeric" />
+              @if (categoryForm.controls.sortOrder.touched && categoryForm.controls.sortOrder.invalid) {
+                <small class="field-error">Utilise un nombre positif.</small>
+              }
+            </label>
+            <div class="inline-actions">
+              @if (editingCategoryId()) {
+                <button type="button" class="ghost compact" (click)="resetCategoryForm()">Annuler</button>
+              }
+              <button type="submit" class="primary compact" [disabled]="busy()">
+                {{ busy() ? "Enregistrement…" : editingCategoryId() ? "Modifier" : "Ajouter" }}
+              </button>
+            </div>
+          </form>
+          <div class="compact-list">
+            @for (category of categories(); track category.id) {
+              <div class="compact-row">
+                <span class="order-number">{{ category.sortOrder }}</span>
+                <strong>{{ category.name }}</strong>
+                <div class="row-actions">
+                  <button class="text-button" type="button" (click)="editCategory(category)">Modifier</button>
+                  <button class="text-button danger" type="button" (click)="deleteCategory(category)">Supprimer</button>
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+
+        <section class="admin-section">
+          <div class="section-title">
+            <h2>{{ editingButtonId() ? "Modifier le bouton" : "Nouveau bouton" }}</h2>
+          </div>
+          <form [formGroup]="buttonForm" (ngSubmit)="saveButton()" class="button-form card-surface">
+            <label>
+              Nom
+              <input formControlName="name" maxlength="120" placeholder="Entrée des mariés" (blur)="suggestTag()" />
+              @if (buttonForm.controls.name.touched && buttonForm.controls.name.invalid) {
+                <small class="field-error">Indique un nom.</small>
+              }
+            </label>
+            <label>
+              Balise dans le conducteur
+              <span class="tag-input"><span>&#64;</span><input formControlName="tag" maxlength="80" placeholder="entree" (blur)="normalizeButtonTag()" /></span>
+              @if (buttonForm.controls.tag.touched && buttonForm.controls.tag.invalid) {
+                <small class="field-error">Indique une balise composée de lettres, chiffres, tirets ou tirets bas.</small>
+              }
+            </label>
+            <label>
+              Description
+              <textarea formControlName="description" maxlength="300" rows="2" placeholder="À lancer dès l’ouverture des portes"></textarea>
+            </label>
+            <div class="two-columns">
+              <label>
+                Catégorie
+                <select formControlName="categoryId">
+                  @for (category of categories(); track category.id) {
+                    <option [value]="category.id">{{ category.name }}</option>
+                  }
+                </select>
+                @if (buttonForm.controls.categoryId.touched && buttonForm.controls.categoryId.invalid) {
+                  <small class="field-error">Choisis une catégorie.</small>
+                }
+              </label>
+              <label>
+                Ordre
+                <input formControlName="sortOrder" type="number" inputmode="numeric" />
+              </label>
+            </div>
+            <div class="file-grid">
+              <label class="file-picker">
+                <span>Musique {{ editingButtonId() ? "(laisser vide pour conserver)" : "" }}</span>
+                <input #audioInput type="file" accept="audio/*,.mp3,.m4a,.wav,.ogg,.aac,.flac" (change)="chooseAudio($event)" />
+                <strong>{{ audioFileName() || "Choisir un fichier" }}</strong>
+                @if (buttonSaveAttempted() && !editingButtonId() && !audioFileName()) {
+                  <small class="field-error">Une musique est obligatoire.</small>
+                }
+              </label>
+              <label class="file-picker">
+                <span>Petite image</span>
+                <input #imageInput type="file" accept="image/jpeg,image/png,image/webp,image/gif" (change)="chooseImage($event)" />
+                <strong>{{ imageFileName() || "Choisir une image" }}</strong>
+              </label>
+            </div>
+            @if (editingButtonId() && imageFileName()) {
+              <label class="checkbox-row">
+                <input type="checkbox" [checked]="removeImage()" (change)="removeImage.set(!removeImage())" />
+                Supprimer l’image actuelle
+              </label>
+            }
+            <div class="form-actions">
+              @if (editingButtonId()) {
+                <button class="ghost" type="button" (click)="resetButtonForm()">Annuler</button>
+              }
+              <button class="primary" type="submit" [disabled]="busy() || !categories().length">
+                {{ busy() ? "Enregistrement…" : editingButtonId() ? "Enregistrer" : "Créer le bouton" }}
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="admin-section">
+          <div class="section-title">
+            <h2>Boutons existants</h2>
+            <span>{{ buttons().length }}</span>
+          </div>
+          <div class="admin-button-list">
+            @for (button of buttons(); track button.id) {
+              <article class="admin-button-row">
+                <span class="mini-cover">
+                  @if (button.imageUrl) { <img [src]="button.imageUrl" alt="" /> } @else { ♪ }
+                </span>
+                <div class="grow">
+                  <strong>{{ button.name }}</strong>
+                  <small>{{ button.categoryName }} · &#64;{{ button.tag }}</small>
+                </div>
+                <div class="row-actions">
+                  <button class="text-button" type="button" (click)="editButton(button)">Modifier</button>
+                  <button class="text-button danger" type="button" (click)="deleteButton(button)">Supprimer</button>
+                </div>
+              </article>
+            }
+          </div>
+        </section>
+      }
+    </main>
+
+    @if (audio.activeButton(); as current) {
+      <aside class="player-dock" aria-label="Lecteur audio">
+        <button class="player-main" type="button" (click)="toggleActiveMusic()" [attr.aria-label]="audio.playing() ? 'Mettre en pause' : 'Reprendre'">
+          {{ audio.playing() ? "Ⅱ" : "▶" }}
+        </button>
+        <div class="player-copy">
+          <strong>
+            {{ current.name }}
+            @if (audio.excerpt()) {
+              <small>· {{ formatTime(audio.playbackStart()) }}–{{ formatTime(audio.playbackEnd()) }}</small>
+            }
+          </strong>
+          <div class="player-progress">
+            <span>{{ formatTime(audio.currentTime()) }}</span>
+            <input
+              type="range"
+              [min]="audio.playbackStart()"
+              [max]="audio.playbackEnd() || 0"
+              [value]="audio.currentTime()"
+              (input)="seek($event)"
+              aria-label="Position dans la musique"
+            />
+            <span>{{ formatTime(audio.playbackEnd()) }}</span>
+          </div>
+        </div>
+        @if (isAdmin()) {
+          <button
+            class="player-loop"
+            [class.active]="audio.looping()"
+            type="button"
+            (click)="audio.toggleLoop()"
+            [attr.aria-pressed]="audio.looping()"
+            [attr.aria-label]="audio.looping() ? 'Désactiver la boucle' : 'Activer la boucle'"
+          >
+            <span aria-hidden="true">↻</span>
+            Boucle
+          </button>
+        }
+        <button class="player-stop" type="button" (click)="audio.stop()" aria-label="Arrêter la musique">■</button>
+      </aside>
+    }
+
+    <nav class="bottom-nav" aria-label="Navigation principale">
+      <button type="button" [class.active]="activeView() === 'buttons'" (click)="setView('buttons')">
+        <span aria-hidden="true">♪</span>Musiques
+      </button>
+      <button type="button" [class.active]="activeView() === 'script'" (click)="setView('script')">
+        <span aria-hidden="true">≡</span>Conducteur
+      </button>
+      @if (isAdmin()) {
+        <button type="button" [class.active]="activeView() === 'admin'" (click)="setView('admin')">
+          <span aria-hidden="true">⚙</span>Admin
+        </button>
+      }
+    </nav>
+  </div>
+}

@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.angular/
+.env
+.env.development
+storage/
+server/generated/
+data/
+coverage/
+*.log
+.sites-runtime/
+.wrangler/
+.next/
