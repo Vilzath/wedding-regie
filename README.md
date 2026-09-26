@@ -4,15 +4,17 @@ Application Angular mobile-first pour piloter les musiques d’une cérémonie d
 
 Stack validée : Angular 21.2, TypeScript 5.9 et Node.js 20.19+.
 
-## Ce que fait la V0.3
+## Ce que fait la V0.4
 
 - écran **Musiques** organisé par catégories ;
-- un seul morceau lu à la fois, avec pause, reprise, arrêt et position ;
+- un seul morceau lu à la fois, avec pause, reprise, arrêt progressif et position ;
+- playlists administrables avec ordre des morceaux, lecture automatique et fondu sortant/entrant entre chaque titre ;
+- boucle de toute la playlist activable par l’administrateur depuis le lecteur ;
 - écran **Conducteur** : toute balise comme `@entree` devient un bouton musical dans le texte ;
 - extraits minutés dans le conducteur avec une balise comme `@entree[0:30-1:15]` ;
-- fondu descendant sur les deux dernières secondes d’un morceau ou d’un extrait, et fondu court lors d’un changement de musique ;
+- fondu descendant sur les deux dernières secondes d’un morceau ou d’un extrait, lors d’un changement de musique et avec le bouton d’arrêt ;
 - mode boucle activable par l’administrateur dans le lecteur, pour un morceau entier ou uniquement l’extrait minuté ;
-- écran **Administration** : catégories, boutons, descriptions, images, audios et conducteur ;
+- écran **Administration** : catégories, boutons, playlists, descriptions, images, audios et conducteur ;
 - rôles `ADMIN` et `USER` ;
 - maintien de l’écran allumé via la Screen Wake Lock API ;
 - déduplication des fichiers audio par SHA-256 ;

@@ -5,7 +5,7 @@ import {FormBuilder, ReactiveFormsModule, Validators} from "@angular/forms";
 import {ApiService} from "./api.service";
 import {AudioService} from "./audio.service";
 import {normalizeTagInput} from "./form-utils";
-import type {Category, MusicButton, ScriptSegment, User} from "./models";
+import type {Category, MusicButton, Playlist, ScriptSegment, User} from "./models";
 import {
   buildMusicToken,
   formatTimecode,
@@ -36,6 +36,7 @@ export class AppComponent implements OnInit {
   readonly user = signal<User | null>(null);
   readonly categories = signal<Category[]>([]);
   readonly buttons = signal<MusicButton[]>([]);
+  readonly playlists = signal<Playlist[]>([]);
   readonly scriptContent = signal("");
   readonly activeView = signal<View>("buttons");
   readonly editingScript = signal(false);
@@ -43,6 +44,8 @@ export class AppComponent implements OnInit {
   readonly notice = signal("");
   readonly editingCategoryId = signal<string | null>(null);
   readonly editingButtonId = signal<string | null>(null);
+  readonly editingPlaylistId = signal<string | null>(null);
+  readonly playlistButtonIds = signal<string[]>([]);
   readonly audioFileName = signal("");
   readonly imageFileName = signal("");
   readonly removeImage = signal(false);
@@ -65,6 +68,11 @@ export class AppComponent implements OnInit {
   readonly scriptSegments = computed<ScriptSegment[]>(() =>
     parseScriptSegments(this.scriptContent(), this.buttons()),
   );
+  readonly selectedPlaylistButtons = computed(() =>
+    this.playlistButtonIds()
+      .map((id) => this.buttons().find((button) => button.id === id))
+      .filter((button): button is MusicButton => Boolean(button)),
+  );
 
   readonly loginForm = this.fb.group({
     username: ["", [Validators.required, Validators.maxLength(80)]],
@@ -79,6 +87,11 @@ export class AppComponent implements OnInit {
     tag: ["", [Validators.required, Validators.maxLength(80), Validators.pattern(/^[a-z0-9][a-z0-9_-]*$/)]],
     description: ["", [Validators.maxLength(300)]],
     categoryId: ["", [Validators.required]],
+    sortOrder: [10, [Validators.required, Validators.min(0)]],
+  });
+  readonly playlistForm = this.fb.group({
+    name: ["", [Validators.required, Validators.maxLength(120)]],
+    description: ["", [Validators.maxLength(300)]],
     sortOrder: [10, [Validators.required, Validators.min(0)]],
   });
   readonly scriptForm = this.fb.group({content: ["", [Validators.maxLength(100_000)]]});
@@ -109,11 +122,12 @@ export class AppComponent implements OnInit {
   }
 
   async logout(): Promise<void> {
-    this.audio.stop();
+    await this.audio.stop();
     await this.api.logout().catch(() => undefined);
     this.user.set(null);
     this.categories.set([]);
     this.buttons.set([]);
+    this.playlists.set([]);
     this.scriptContent.set("");
     this.activeView.set("buttons");
   }
@@ -134,6 +148,11 @@ export class AppComponent implements OnInit {
     await this.audio.toggle(button, startSeconds, endSeconds);
   }
 
+  async togglePlaylist(playlist: Playlist): Promise<void> {
+    await this.wakeLock.enable();
+    await this.audio.togglePlaylist(playlist);
+  }
+
   async toggleActiveMusic(): Promise<void> {
     await this.wakeLock.enable();
     await this.audio.toggleActive();
@@ -141,6 +160,10 @@ export class AppComponent implements OnInit {
 
   isMusicPlaying(button: MusicButton, startSeconds = 0, endSeconds: number | null = null): boolean {
     return this.audio.playing() && this.audio.isActive(button, startSeconds, endSeconds);
+  }
+
+  isPlaylistPlaying(playlist: Playlist): boolean {
+    return this.audio.playing() && this.audio.isPlaylistActive(playlist);
   }
 
   async saveCategory(): Promise<void> {
@@ -288,10 +311,87 @@ export class AppComponent implements OnInit {
     if (!window.confirm(`Supprimer « ${button.name} » et sa balise @${button.tag} du conducteur ?`)) return;
     this.clearMessages();
     try {
-      if (this.audio.activeButton()?.id === button.id) this.audio.stop();
+      if (
+        this.audio.activeButton()?.id === button.id
+        || this.audio.activePlaylist()?.buttons.some((item) => item.id === button.id)
+      ) await this.audio.stop();
       await this.api.deleteButton(button.id);
       await this.loadData(false);
       this.notice.set("Bouton et balise supprimés.");
+    } catch (error) {
+      this.error.set(this.messageFrom(error));
+    }
+  }
+
+  togglePlaylistButton(button: MusicButton): void {
+    this.playlistButtonIds.update((ids) =>
+      ids.includes(button.id) ? ids.filter((id) => id !== button.id) : [...ids, button.id],
+    );
+  }
+
+  movePlaylistButton(buttonId: string, direction: -1 | 1): void {
+    this.playlistButtonIds.update((ids) => {
+      const current = ids.indexOf(buttonId);
+      const target = current + direction;
+      if (current < 0 || target < 0 || target >= ids.length) return ids;
+      const reordered = [...ids];
+      [reordered[current], reordered[target]] = [reordered[target]!, reordered[current]!];
+      return reordered;
+    });
+  }
+
+  async savePlaylist(): Promise<void> {
+    if (this.busy()) return;
+    if (this.playlistForm.invalid || !this.playlistButtonIds().length) {
+      this.playlistForm.markAllAsTouched();
+      this.error.set(!this.playlistButtonIds().length
+        ? "Choisis au moins une musique pour la playlist."
+        : "Vérifie les informations de la playlist.");
+      return;
+    }
+    this.busy.set(true);
+    this.clearMessages();
+    try {
+      const payload = {...this.playlistForm.getRawValue(), buttonIds: this.playlistButtonIds()};
+      const id = this.editingPlaylistId();
+      if (id && this.audio.activePlaylist()?.id === id) await this.audio.stop();
+      if (id) await this.api.updatePlaylist(id, payload);
+      else await this.api.createPlaylist(payload);
+      await this.loadData(false);
+      this.resetPlaylistForm();
+      this.notice.set(id ? "Playlist modifiée." : "Playlist ajoutée.");
+    } catch (error) {
+      this.error.set(this.messageFrom(error));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  editPlaylist(playlist: Playlist): void {
+    this.editingPlaylistId.set(playlist.id);
+    this.playlistForm.setValue({
+      name: playlist.name,
+      description: playlist.description,
+      sortOrder: playlist.sortOrder,
+    });
+    this.playlistButtonIds.set(playlist.buttons.map((button) => button.id));
+    window.scrollTo({top: 0, behavior: "smooth"});
+  }
+
+  resetPlaylistForm(): void {
+    this.editingPlaylistId.set(null);
+    this.playlistForm.reset({name: "", description: "", sortOrder: 10});
+    this.playlistButtonIds.set([]);
+  }
+
+  async deletePlaylist(playlist: Playlist): Promise<void> {
+    if (!window.confirm(`Supprimer la playlist « ${playlist.name} » ?`)) return;
+    this.clearMessages();
+    try {
+      if (this.audio.activePlaylist()?.id === playlist.id) await this.audio.stop();
+      await this.api.deletePlaylist(playlist.id);
+      await this.loadData(false);
+      this.notice.set("Playlist supprimée.");
     } catch (error) {
       this.error.set(this.messageFrom(error));
     }
@@ -395,6 +495,7 @@ export class AppComponent implements OnInit {
       this.user.set(data.user);
       this.categories.set(data.categories);
       this.buttons.set(data.buttons);
+      this.playlists.set(data.playlists);
       this.scriptContent.set(data.script.content);
       if (!this.buttonForm.controls.categoryId.value && data.categories[0]) {
         this.buttonForm.controls.categoryId.setValue(data.categories[0].id);

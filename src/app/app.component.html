@@ -60,6 +60,30 @@
             <h1>Musiques</h1>
           </div>
         </div>
+        @if (playlists().length) {
+          <section class="playlist-section">
+            <h2>Playlists</h2>
+            <div class="playlist-grid">
+              @for (playlist of playlists(); track playlist.id) {
+                <button
+                  type="button"
+                  class="playlist-card"
+                  [class.playing]="isPlaylistPlaying(playlist)"
+                  (click)="togglePlaylist(playlist)"
+                >
+                  <span class="playlist-icon" aria-hidden="true">
+                    {{ isPlaylistPlaying(playlist) ? "Ⅱ" : "▶" }}
+                  </span>
+                  <span class="playlist-copy">
+                    <strong>{{ playlist.name }}</strong>
+                    <small>{{ playlist.buttons.length }} morceau{{ playlist.buttons.length > 1 ? "x" : "" }}</small>
+                    @if (playlist.description) { <span>{{ playlist.description }}</span> }
+                  </span>
+                </button>
+              }
+            </div>
+          </section>
+        }
         @if (!buttons().length) {
           <section class="empty-state">
             <span aria-hidden="true">♪</span>
@@ -340,6 +364,92 @@
             }
           </div>
         </section>
+
+        <section class="admin-section">
+          <div class="section-title">
+            <h2>{{ editingPlaylistId() ? "Modifier la playlist" : "Nouvelle playlist" }}</h2>
+            <span>{{ playlists().length }}</span>
+          </div>
+          <form [formGroup]="playlistForm" (ngSubmit)="savePlaylist()" class="playlist-form card-surface">
+            <div class="two-columns">
+              <label>
+                Nom
+                <input formControlName="name" maxlength="120" placeholder="Ambiance du dîner" />
+                @if (playlistForm.controls.name.touched && playlistForm.controls.name.invalid) {
+                  <small class="field-error">Indique un nom.</small>
+                }
+              </label>
+              <label class="order-field">
+                Ordre
+                <input formControlName="sortOrder" type="number" inputmode="numeric" />
+              </label>
+            </div>
+            <label>
+              Description
+              <textarea formControlName="description" maxlength="300" rows="2" placeholder="Lecture automatique avec fondus"></textarea>
+            </label>
+
+            <fieldset class="playlist-picker">
+              <legend>Choisir les morceaux</legend>
+              @for (button of buttons(); track button.id) {
+                <label class="checkbox-row playlist-choice">
+                  <input
+                    type="checkbox"
+                    [checked]="playlistButtonIds().includes(button.id)"
+                    (change)="togglePlaylistButton(button)"
+                  />
+                  <span>
+                    <strong>{{ button.name }}</strong>
+                    <small>{{ button.categoryName }}</small>
+                  </span>
+                </label>
+              }
+            </fieldset>
+
+            @if (selectedPlaylistButtons().length) {
+              <div class="playlist-order">
+                <p>Ordre de lecture</p>
+                @for (button of selectedPlaylistButtons(); track button.id; let first = $first; let last = $last; let index = $index) {
+                  <div class="playlist-order-row">
+                    <span>{{ index + 1 }}</span>
+                    <strong>{{ button.name }}</strong>
+                    <div class="row-actions">
+                      <button type="button" class="order-button" [disabled]="first" (click)="movePlaylistButton(button.id, -1)" aria-label="Monter">↑</button>
+                      <button type="button" class="order-button" [disabled]="last" (click)="movePlaylistButton(button.id, 1)" aria-label="Descendre">↓</button>
+                    </div>
+                  </div>
+                }
+              </div>
+            }
+
+            <div class="form-actions">
+              @if (editingPlaylistId()) {
+                <button class="ghost" type="button" (click)="resetPlaylistForm()">Annuler</button>
+              }
+              <button class="primary" type="submit" [disabled]="busy() || !buttons().length">
+                {{ busy() ? "Enregistrement…" : editingPlaylistId() ? "Enregistrer" : "Créer la playlist" }}
+              </button>
+            </div>
+          </form>
+
+          @if (playlists().length) {
+            <div class="admin-playlist-list">
+              @for (playlist of playlists(); track playlist.id) {
+                <article class="admin-playlist-row">
+                  <span class="playlist-mini-icon" aria-hidden="true">▶</span>
+                  <div class="grow">
+                    <strong>{{ playlist.name }}</strong>
+                    <small>{{ playlist.buttons.length }} morceau{{ playlist.buttons.length > 1 ? "x" : "" }} · {{ playlist.buttons[0]?.name }}</small>
+                  </div>
+                  <div class="row-actions">
+                    <button class="text-button" type="button" (click)="editPlaylist(playlist)">Modifier</button>
+                    <button class="text-button danger" type="button" (click)="deletePlaylist(playlist)">Supprimer</button>
+                  </div>
+                </article>
+              }
+            </div>
+          }
+        </section>
       }
     </main>
 
@@ -355,6 +465,9 @@
               <small>· {{ formatTime(audio.playbackStart()) }}–{{ formatTime(audio.playbackEnd()) }}</small>
             }
           </strong>
+          @if (audio.activePlaylist(); as playlist) {
+            <small class="player-playlist">{{ playlist.name }} · {{ audio.playlistIndex() + 1 }}/{{ playlist.buttons.length }}</small>
+          }
           <div class="player-progress">
             <span>{{ formatTime(audio.currentTime()) }}</span>
             <input
@@ -378,10 +491,10 @@
             [attr.aria-label]="audio.looping() ? 'Désactiver la boucle' : 'Activer la boucle'"
           >
             <span aria-hidden="true">↻</span>
-            Boucle
+            {{ audio.activePlaylist() ? "Playlist" : "Boucle" }}
           </button>
         }
-        <button class="player-stop" type="button" (click)="audio.stop()" aria-label="Arrêter la musique">■</button>
+        <button class="player-stop" type="button" (click)="audio.stop()" aria-label="Arrêter avec un fondu">■</button>
       </aside>
     }
 

@@ -20,12 +20,14 @@ const {prismaMock, transactionMock, mediaMock} = vi.hoisted(() => {
   const transaction = {
     ceremonyScript: {findUnique: vi.fn(), upsert: vi.fn()},
     musicButton: {update: vi.fn(), delete: vi.fn()},
+    playlist: {deleteMany: vi.fn()},
   };
   return {
     transactionMock: transaction,
     prismaMock: {
       category: {create: vi.fn(), update: vi.fn()},
       musicButton: {create: vi.fn(), findUnique: vi.fn()},
+      playlist: {create: vi.fn(), update: vi.fn(), delete: vi.fn()},
       ceremonyScript: {upsert: vi.fn()},
       $transaction: vi.fn(async (callback: (client: typeof transaction) => unknown) => callback(transaction)),
     },
@@ -75,6 +77,28 @@ function buttonRecord(data: Record<string, unknown>) {
   };
 }
 
+function playlistRecord(data: Record<string, unknown>) {
+  const nestedItems = data["items"] as {create?: Array<{buttonId: string; sortOrder: number}>} | undefined;
+  return {
+    id: "00000000-0000-4000-8000-000000000040",
+    name: data["name"],
+    description: data["description"],
+    sortOrder: data["sortOrder"],
+    items: (nestedItems?.create ?? []).map((item, index) => ({
+      id: `item-${index}`,
+      sortOrder: item.sortOrder,
+      button: buttonRecord({
+        name: `Musique ${index + 1}`,
+        tag: `musique-${index + 1}`,
+        description: "",
+        sortOrder: item.sortOrder,
+        categoryId: category.id,
+        audioAssetId: audioAsset.id,
+      }),
+    })),
+  };
+}
+
 describe("routes d’enregistrement", () => {
   let server: ReturnType<typeof app.listen>;
   let origin: string;
@@ -109,6 +133,9 @@ describe("routes d’enregistrement", () => {
       audioAssetId: audioAsset.id,
       imageAssetId: null,
     });
+    prismaMock.playlist.create.mockImplementation(async ({data}: {data: Record<string, unknown>}) => playlistRecord(data));
+    prismaMock.playlist.update.mockImplementation(async ({data}: {data: Record<string, unknown>}) => playlistRecord(data));
+    prismaMock.playlist.delete.mockResolvedValue({});
     transactionMock.ceremonyScript.findUnique.mockResolvedValue({content: "Lancer @ancienne-balise."});
     transactionMock.ceremonyScript.upsert.mockResolvedValue({});
     transactionMock.musicButton.update.mockImplementation(async ({data}: {data: Record<string, unknown>}) => buttonRecord(data));
@@ -185,5 +212,26 @@ describe("routes d’enregistrement", () => {
     expect(response.status).toBe(200);
     expect(result).toMatchObject({name: "Première danse", audioAssetId: audioAsset.id});
     expect(mediaMock.persistUpload).not.toHaveBeenCalled();
+  });
+
+  it("crée une playlist en conservant l’ordre des morceaux", async () => {
+    const response = await fetch(`${origin}/api/playlists`, {
+      method: "POST",
+      headers: {"content-type": "application/json"},
+      body: JSON.stringify({
+        name: "Ambiance du dîner",
+        description: "Enchaînement automatique",
+        sortOrder: 10,
+        buttonIds: [
+          "00000000-0000-4000-8000-000000000030",
+          "00000000-0000-4000-8000-000000000031",
+        ],
+      }),
+    });
+    const result = await response.json() as {name: string; buttons: Array<{name: string}>};
+
+    expect(response.status).toBe(201);
+    expect(result.name).toBe("Ambiance du dîner");
+    expect(result.buttons.map((item) => item.name)).toEqual(["Musique 1", "Musique 2"]);
   });
 });

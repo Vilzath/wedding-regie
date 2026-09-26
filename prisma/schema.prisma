@@ -91,11 +91,40 @@ model MusicButton {
   audioAsset   MediaAsset  @relation("ButtonAudio", fields: [audioAssetId], references: [id], onDelete: Restrict)
   imageAssetId String?     @map("image_asset_id") @db.Uuid
   imageAsset   MediaAsset? @relation("ButtonImage", fields: [imageAssetId], references: [id], onDelete: SetNull)
+  playlistItems PlaylistItem[]
   createdAt    DateTime    @default(now()) @map("created_at")
   updatedAt    DateTime    @updatedAt @map("updated_at")
 
   @@index([categoryId, sortOrder])
   @@map("music_buttons")
+  @@schema("regie")
+}
+
+model Playlist {
+  id          String         @id @default(uuid()) @db.Uuid
+  name        String         @unique @db.VarChar(120)
+  description String         @default("") @db.VarChar(300)
+  sortOrder   Int            @default(0) @map("sort_order")
+  items       PlaylistItem[]
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  @@index([sortOrder])
+  @@map("playlists")
+  @@schema("regie")
+}
+
+model PlaylistItem {
+  id         String      @id @default(uuid()) @db.Uuid
+  playlistId String      @map("playlist_id") @db.Uuid
+  playlist   Playlist    @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  buttonId   String      @map("button_id") @db.Uuid
+  button     MusicButton @relation(fields: [buttonId], references: [id], onDelete: Cascade)
+  sortOrder  Int         @default(0) @map("sort_order")
+
+  @@index([playlistId, sortOrder])
+  @@index([buttonId])
+  @@map("playlist_items")
   @@schema("regie")
 }
 

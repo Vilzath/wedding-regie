@@ -1,7 +1,9 @@
 import {HttpClient} from "@angular/common/http";
 import {inject, Injectable} from "@angular/core";
 import {firstValueFrom} from "rxjs";
-import type {BootstrapData, Category, MusicButton, User} from "./models";
+import type {BootstrapData, Category, MusicButton, Playlist, User} from "./models";
+
+type PlaylistPayload = Pick<Playlist, "name" | "description" | "sortOrder"> & {buttonIds: string[]};
 
 @Injectable({providedIn: "root"})
 export class ApiService {
@@ -41,6 +43,18 @@ export class ApiService {
 
   deleteButton(id: string): Promise<void> {
     return firstValueFrom(this.http.delete<void>(`/api/buttons/${id}`));
+  }
+
+  createPlaylist(data: PlaylistPayload): Promise<Playlist> {
+    return firstValueFrom(this.http.post<Playlist>("/api/playlists", data));
+  }
+
+  updatePlaylist(id: string, data: PlaylistPayload): Promise<Playlist> {
+    return firstValueFrom(this.http.put<Playlist>(`/api/playlists/${id}`, data));
+  }
+
+  deletePlaylist(id: string): Promise<void> {
+    return firstValueFrom(this.http.delete<void>(`/api/playlists/${id}`));
   }
 
   saveScript(content: string): Promise<{content: string; updatedAt: string}> {

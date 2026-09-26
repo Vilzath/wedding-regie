@@ -65,6 +65,15 @@ const buttonSchema = z.object({
   removeImage: z.enum(["true", "false"]).optional(),
 });
 const scriptSchema = z.object({content: z.string().max(100_000)});
+const playlistSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+  description: z.string().trim().max(300).default(""),
+  sortOrder: z.coerce.number().int().min(0).max(10000).default(0),
+  buttonIds: z.array(z.string().uuid()).min(1).max(100).refine(
+    (ids) => new Set(ids).size === ids.length,
+    {message: "Une musique ne peut apparaître qu’une fois dans la playlist."},
+  ),
+});
 
 function routeId(request: Request): string {
   const id = request.params["id"];
@@ -143,12 +152,34 @@ function buttonDto(button: ButtonWithAssets) {
   };
 }
 
+const playlistInclude = {
+  items: {
+    include: {button: {include: buttonInclude}},
+    orderBy: [{sortOrder: "asc" as const}, {id: "asc" as const}],
+  },
+} satisfies Prisma.PlaylistInclude;
+type PlaylistWithButtons = Prisma.PlaylistGetPayload<{include: typeof playlistInclude}>;
+
+function playlistDto(playlist: PlaylistWithButtons) {
+  return {
+    id: playlist.id,
+    name: playlist.name,
+    description: playlist.description,
+    sortOrder: playlist.sortOrder,
+    buttons: playlist.items.map((item) => buttonDto(item.button)),
+  };
+}
+
 async function loadBootstrap() {
-  const [categories, buttons, script] = await Promise.all([
+  const [categories, buttons, playlists, script] = await Promise.all([
     prisma.category.findMany({orderBy: [{sortOrder: "asc"}, {name: "asc"}]}),
     prisma.musicButton.findMany({
       include: buttonInclude,
       orderBy: [{category: {sortOrder: "asc"}}, {sortOrder: "asc"}, {name: "asc"}],
+    }),
+    prisma.playlist.findMany({
+      include: playlistInclude,
+      orderBy: [{sortOrder: "asc"}, {name: "asc"}],
     }),
     prisma.ceremonyScript.findUnique({where: {id: "main"}}),
   ]);
@@ -157,6 +188,7 @@ async function loadBootstrap() {
       ({id, name, sortOrder}: {id: string; name: string; sortOrder: number}) => ({id, name, sortOrder}),
     ),
     buttons: buttons.map(buttonDto),
+    playlists: playlists.map(playlistDto),
     script: {content: script?.content ?? "", updatedAt: script?.updatedAt ?? null},
   };
 }
@@ -185,6 +217,44 @@ app.delete("/api/categories/:id", requireAdmin, async (request, response) => {
     return;
   }
   await prisma.category.delete({where: {id}});
+  response.status(204).end();
+});
+
+function playlistItems(buttonIds: string[]) {
+  return buttonIds.map((buttonId, index) => ({buttonId, sortOrder: (index + 1) * 10}));
+}
+
+app.post("/api/playlists", requireAdmin, async (request, response) => {
+  const payload = playlistSchema.parse(request.body);
+  const playlist = await prisma.playlist.create({
+    data: {
+      name: payload.name,
+      description: payload.description,
+      sortOrder: payload.sortOrder,
+      items: {create: playlistItems(payload.buttonIds)},
+    },
+    include: playlistInclude,
+  });
+  response.status(201).json(playlistDto(playlist));
+});
+
+app.put("/api/playlists/:id", requireAdmin, async (request, response) => {
+  const payload = playlistSchema.parse(request.body);
+  const playlist = await prisma.playlist.update({
+    where: {id: routeId(request)},
+    data: {
+      name: payload.name,
+      description: payload.description,
+      sortOrder: payload.sortOrder,
+      items: {deleteMany: {}, create: playlistItems(payload.buttonIds)},
+    },
+    include: playlistInclude,
+  });
+  response.json(playlistDto(playlist));
+});
+
+app.delete("/api/playlists/:id", requireAdmin, async (request, response) => {
+  await prisma.playlist.delete({where: {id: routeId(request)}});
   response.status(204).end();
 });
 
@@ -293,6 +363,7 @@ app.delete("/api/buttons/:id", requireAdmin, async (request, response) => {
   await prisma.$transaction(async (transaction: Prisma.TransactionClient) => {
     const script = await transaction.ceremonyScript.findUnique({where: {id: "main"}});
     await transaction.musicButton.delete({where: {id: current.id}});
+    await transaction.playlist.deleteMany({where: {items: {none: {}}}});
     await transaction.ceremonyScript.upsert({
       where: {id: "main"},
       create: {id: "main", content: ""},

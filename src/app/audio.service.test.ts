@@ -1,5 +1,5 @@
 import {afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest";
-import type {MusicButton} from "./models";
+import type {MusicButton, Playlist} from "./models";
 import {AudioService} from "./audio.service";
 
 class FakeAudio extends EventTarget {
@@ -46,6 +46,14 @@ const button = (id: string): MusicButton => ({
   audioUrl: `/api/media/audio-${id}`,
   imageAssetId: null,
   imageUrl: null,
+});
+
+const playlist = (...ids: string[]): Playlist => ({
+  id: "playlist-1",
+  name: "Ambiance",
+  description: "",
+  sortOrder: 10,
+  buttons: ids.map(button),
 });
 
 describe("lecteur audio", () => {
@@ -111,11 +119,47 @@ describe("lecteur audio", () => {
     const service = new AudioService();
     await service.toggle(button("a"));
     const switching = service.toggle(button("b"));
-    await vi.advanceTimersByTimeAsync(600);
+    await vi.advanceTimersByTimeAsync(750);
     await switching;
 
     expect(service.activeButton()?.id).toBe("b");
     expect(service.looping()).toBe(false);
     expect(service.playing()).toBe(true);
+  });
+
+  it("applique un fondu avant l’arrêt complet", async () => {
+    vi.useFakeTimers();
+    const service = new AudioService();
+    await service.toggle(button("a"));
+    const audio = FakeAudio.instances[0]!;
+    const stopping = service.stop();
+
+    await vi.advanceTimersByTimeAsync(375);
+    expect(audio.volume).toBeGreaterThan(0);
+    expect(audio.volume).toBeLessThan(1);
+
+    await vi.advanceTimersByTimeAsync(400);
+    await stopping;
+    expect(service.activeButton()).toBeNull();
+    expect(service.playing()).toBe(false);
+  });
+
+  it("enchaîne les morceaux d’une playlist avec un fondu entrant", async () => {
+    vi.useFakeTimers();
+    const service = new AudioService();
+    const starting = service.togglePlaylist(playlist("a", "b"));
+    await vi.advanceTimersByTimeAsync(750);
+    await starting;
+
+    const audio = FakeAudio.instances[0]!;
+    audio.currentTime = 120;
+    audio.dispatchEvent(new Event("ended"));
+    await vi.advanceTimersByTimeAsync(750);
+
+    expect(service.activePlaylist()?.id).toBe("playlist-1");
+    expect(service.playlistIndex()).toBe(1);
+    expect(service.activeButton()?.id).toBe("b");
+    expect(service.playing()).toBe(true);
+    expect(audio.volume).toBe(1);
   });
 });

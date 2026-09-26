@@ -27,10 +27,19 @@ export interface MusicButton {
   imageUrl: string | null;
 }
 
+export interface Playlist {
+  id: string;
+  name: string;
+  description: string;
+  sortOrder: number;
+  buttons: MusicButton[];
+}
+
 export interface BootstrapData {
   user: User;
   categories: Category[];
   buttons: MusicButton[];
+  playlists: Playlist[];
   script: {content: string; updatedAt: string | null};
 }
 
